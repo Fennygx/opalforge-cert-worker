@@ -2,6 +2,11 @@ name = "cert-generator-worker"
 main = "src/index.ts"
 compatibility_date = "2025-11-25"
 
+# --- ADD THIS BLOCK ---
+[observability]
+logs = { enabled = true, head_sampling_rate = 1, invocation_logs = true, persist = true }
+# ----------------------
+
 # D1 Database
 [[d1_databases]]
 binding = "CERT_DB"
