@@ -1,64 +1,32 @@
-// No longer need pdf-lib, but need D1 and ArrayBuffer for the binary PDF response
-import { D1Database } from '@cloudflare/workers-types'; 
+// src/index.ts
 
-// --- 1. Define the Environment Interface with D1 and API Key Bindings ---
-interface Env {
-    CERT_DB: D1Database;
-    PDF_API_KEY: string; // This key must be added to wrangler.toml or Worker Secrets
+// --- 1. The Cleaned CSS Constant (Validated and ready) ---
+const MINIFIED_CERTIFICATE_CSS_CLEAN = `@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');body{background-color:#0d1a2d;color:#f0f8ff;font-family:'Orbitron',sans-serif;margin:0;padding:40px 20px;display:flex;justify-content:center;align-items:flex-start;min-height:100vh}.certificate-container{width:100%;max-width:900px;background-color:rgba(10,25,47,.9);border:1px solid #00c6ff;box-shadow:0 0 30px rgba(0,198,255,.5),inset 0 0 10px rgba(0,198,255,.3);padding:30px;border-radius:10px;text-align:center}.header h1{color:#00c6ff;font-size:2.5em;margin-bottom:5px}.header h2{font-size:1.1em;color:#c4d7e9;margin-top:0;padding-bottom:20px;border-bottom:1px solid rgba(0,198,255,.2)}.logo{width:60px;margin-bottom:10px}.certificate-id-box{background-color:#00c6ff;color:#0d1a2d;font-size:1.5em;font-weight:700;padding:15px;margin:20px 0;border-radius:5px;letter-spacing:1px}.content-grid{display:flex;text-align:left;margin-top:40px}.item-details,.auth-report{flex:1;padding-right:20px}.item-details h3,.auth-report h3{color:#00c6ff;border-bottom:2px solid rgba(0,198,255,.5);padding-bottom:10px;margin-bottom:20px}.detail-line{border-bottom:1px dashed rgba(255,255,255,.1);padding:10px 0;font-size:.9em;color:#c4d7e9}.authenticity-badge{text-align:center;padding-top:20px}.score-percent{font-size:2.5em;font-weight:700;color:#00ffaa;text-shadow:0 0 15px #00ffaa;margin:10px 0}.footer{border-top:1px solid rgba(0,198,255,.2);padding-top:20px;margin-top:40px;display:flex;justify-content:space-between;align-items:center}.tagline{font-size:.8em;color:#92a4b9}.trust-info{display:flex;align-items:center;font-size:.7em;color:#00c6ff}.qr-code{width:40px;height:40px;margin-right:10px}@media (max-width:600px){.content-grid{flex-direction:column}.certificate-container{padding:20px}.certificate-id-box{font-size:1.2em}.footer{flex-direction:column;text-align:center}}`;
+
+// Define the structure of your environment variables
+export interface Env {
+    PDFSHIFT_API_KEY: string;
+    cert_db: D1Database; // Renamed from CERT_DB to match usage
+    PUBLIC_ASSET_URL: string;
 }
 
-// --- 2. HTML Template Function (This is where your CSS/HTML lives) ---
-// This function contains the certificate design you provided and injects dynamic data.
-function generateCertificateHTML(certDetails: any): string {
-    // IMPORTANT: You will need to take the provided HTML/CSS and map the variables.
-    // This is a simplified example showing how to inject the dynamic data.
+// --- 2. The Complete HTML Body Content Function ---
+function generateCertificateBody(certDetails: any, publicAssetBaseUrl: string): string {
+    const statusText = certDetails.revoked === 1 ? "REVOKED" : "VALID";
+    const scoreText = certDetails.score ? certDetails.score : "N/A";
+    const dateText = certDetails.created_at ? certDetails.created_at.split(" ")[0] : "--";
+    const certId = certDetails.id || 'N/A'; // Using 'id' to match D1 data
     
-    // For simplicity, we are placing the CSS inline in the HTML string, which the API needs.
-    const cssStyles = `
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background-color: #000; color: #e0e0e0; font-family: 'Courier New', Courier, monospace; display: flex; justify-content: center; align-items: flex-start; min-height: 100vh; padding: 20px 0; }
-        .certificate-container { position: relative; width: 90%; max-width: 600px; border: 2px solid #00ffff; padding: 2rem; background: #0a0a0a; box-shadow: 0 0 30px rgba(0, 255, 255, 0.1); margin-bottom: 20px; }
-        .header { text-align: center; border-bottom: 1px solid #00ffff; padding-bottom: 1.5rem; margin-bottom: 1.5rem; }
-        .logo { width: 100px; height: auto; margin-bottom: 1rem; filter: drop-shadow(0 0 15px rgba(0, 255, 255, 0.7)); }
-        h1 { font-size: 1.8rem; letter-spacing: 2px; color: #fff; margin-bottom: 0.5rem; }
-        .sub-header { font-size: 0.8rem; color: #cccccc; letter-spacing: 1px; }
-        .cert-id { margin-top: 1rem; font-size: 0.9rem; color: #0ff; text-shadow: 0 0 5px rgba(0, 255, 255, 0.4); }
-        .item-details { margin-bottom: 2rem; }
-        .item-details h3 { font-size: 1rem; border-left: 3px solid #0ff; padding-left: 10px; margin-bottom: 1rem; color: #fff; }
-        .detail-line { display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem; color: #cccccc; border-bottom: 1px dashed #333; padding-bottom: 5px; }
-        .detail-line span { color: #fff; font-weight: bold; text-align: right; }
-        .auth-report { text-align: center; margin-bottom: 2rem; }
-        .authenticity-badge { border: 1px solid #00ffff; box-shadow: inset 0 0 20px rgba(0, 255, 255, 0.05); padding: 1.5rem; position: relative; background: rgba(0, 255, 255, 0.02); }
-        .confidence-score { font-size: 0.8rem; color: #cccccc; margin-bottom: 0.5rem; }
-        .score-percent { font-size: 2.5rem; color: #0ff; font-weight: bold; text-shadow: 0 0 15px rgba(0, 255, 255, 0.3); }
-        .date { margin-top: 0.5rem; font-size: 0.7rem; color: #aaaaaa; }
-        .qr-section { text-align: center; margin-top: 2rem; }
-        .qr-placeholder { width: 100px; height: 100px; margin: 0 auto; background-color: #fff; padding: 5px; }
-        .trust-text { margin-top: 1rem; font-size: 0.7rem; color: #cccccc; text-transform: uppercase; letter-spacing: 1px; }
-        .footer { text-align: center; margin-top: 2rem; font-size: 0.6rem; color: #aaaaaa; border-top: 1px solid #00ffff; padding-top: 1rem; }
-    `;
-
-    // Map your database fields to the HTML structure
-    const statusText = certDetails.revoked === 1 ? 'REVOKED' : 'VALID';
-    const scoreText = certDetails.score ? certDetails.score : 'N/A';
-    const dateText = certDetails.created_at ? certDetails.created_at.split(' ')[0] : '--';
-
     return `
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <title>OpalForge Certificate ${certDetails.id}</title>
-            <style>${cssStyles}</style>
-        </head>
-        <body>
-            <div class="certificate-container">
-                <div class="header">
-                    <img src="https://example.com/OpalForge-Logo.png" alt="OpalForge Logo" class="logo">
-                    <h1>OPALFORGE</h1>
-                    <p class="sub-header">OFFICIAL AI AUTHENTICATION CERTIFICATE</p>
-                    <p class="cert-id">CERTIFICATE ID: <span id="certificate-id-display">${certDetails.id}</span></p>
-                </div>
+        <div class="certificate-container">
+            <div class="header">
+                <img src="${publicAssetBaseUrl}/OpalForge-Logo.png" alt="OpalForge Logo" class="logo">
+                <h1>OPALFORGE</h1>
+                <p class="sub-header">OFFICIAL AI AUTHENTICATION CERTIFICATE</p>
+                <div class="certificate-id-box">CERTIFICATE ID: <span id="certificate-id-display">${certId}</span></div>
+            </div>
+            
+            <div class="content-grid">
                 <div class="item-details">
                     <h3>ITEM DETAILS</h3>
                     <div class="detail-line">RECIPIENT NAME: <span>${certDetails.recipient_name}</span></div>
@@ -66,6 +34,7 @@ function generateCertificateHTML(certDetails: any): string {
                     <div class="detail-line">COMPLETION DATE: <span>${certDetails.completion_date}</span></div>
                     <div class="detail-line">STATUS: <span>${statusText}</span></div>
                 </div>
+
                 <div class="auth-report">
                     <h3>AUTHENTICATION REPORT</h3>
                     <div class="authenticity-badge">
@@ -74,111 +43,108 @@ function generateCertificateHTML(certDetails: any): string {
                         <p class="date" id="date">AUTHENTICATION DATE: ${dateText}</p>
                     </div>
                 </div>
-                <div class="qr-section">
-                    <img src="https://example.com/qr-code-placeholder.png" alt="Scan to Verify" class="qr-placeholder">
-                    <p class="trust-text">FORGE UNBREAKABLE PROOF. OWN THE ETERNAL.</p>
-                </div>
-                <div class="footer">
-                    <p>Powered by UNIVERSAL TRUST OS</p>
-                </div>
             </div>
-        </body>
-        </html>
+            
+            <div class="qr-section">
+                <img src="${publicAssetBaseUrl}/qr-code-placeholder.png" alt="Scan to Verify" class="qr-placeholder">
+                <p class="trust-text">FORGE UNBREAKABLE PROOF. OWN THE ETERNAL.</p>
+            </div>
+            
+            <div class="footer">
+                <p>Powered by UNIVERSAL TRUST OS</p>
+            </div>
+        </div>
     `;
 }
 
-
+// --- 3. The Main PDF Generation Logic (Using PDFShift) ---
 async function createCertificatePDF(certId: string, env: Env) {
-    
-    // 1. Query the D1 database for the certificate ID
-    const { results } = await env.CERT_DB.prepare("SELECT * FROM Certificates WHERE id = ?")
-        .bind(certId)
-        .all();
-
+    // 1. D1 Lookup (Modified to use env.cert_db)
+    const { results } = await env.cert_db.prepare("SELECT * FROM Certificates WHERE id = ?").bind(certId).all();
     const data = results[0];
-
     if (!data) {
         throw new Error("Certificate ID not found.");
     }
-    
-    // 2. Parse the metadata field and combine data
-    const metadata = JSON.parse(data.metadata as string); 
+    const metadata = data.metadata ? JSON.parse(data.metadata) : {}; // Handle case where metadata might be null
     const certDetails = {
-        ...data, 
+        ...data,
         ...metadata,
-        // Optional: Add a placeholder score if not in metadata
-        score: metadata.score || '99.9%' 
+        score: metadata.score || "99.9%",
+        id: certId // Ensure ID is used consistently
     };
 
-    // --- 3. Dynamically generate the HTML using the function ---
-    const htmlContent = generateCertificateHTML(certDetails);
+    // 2. Generate Payloads
+    const PDFSHIFT_ENDPOINT = 'https://api.pdfshift.io/v3/convert/raw';
+    const authString = btoa(`${env.PDFSHIFT_API_KEY}:`);
     
-    // --- 4. Send HTML to the PDF Generation API ---
-    const pdfApiUrl = 'https://api.pdfservice.io/v1/generate'; // Replace with your chosen API endpoint
-    
-    const response = await fetch(pdfApiUrl, {
+    // NOTE: PUBLIC_ASSET_URL must be set in your Cloudflare Worker settings!
+    const certificateBodyHtml = generateCertificateBody(certDetails, env.PUBLIC_ASSET_URL);
+
+    const pdfShiftPayload = {
+        source: certificateBodyHtml, 
+        source_type: 'html',
+        css: MINIFIED_CERTIFICATE_CSS_CLEAN, 
+        options: {
+            view_port: '1024x768',
+            html_to_pdf: {
+                print_media_type: false,
+                wait_until: 'domcontentloaded',
+            }
+        },
+        filename: `OpalForge_Cert_${certDetails.id}.pdf`
+    };
+
+    // 3. API Call
+    const response = await fetch(PDFSHIFT_ENDPOINT, {
         method: 'POST',
         headers: {
-            'Authorization': `Bearer ${env.PDF_API_KEY}`, 
             'Content-Type': 'application/json',
+            'Authorization': `Basic ${authString}`,
             'Accept': 'application/pdf'
         },
-        body: JSON.stringify({
-            html: htmlContent,
-            options: {
-                format: 'A4',
-                printBackground: true,
-                // Add any other necessary API options (e.g., margins, scaling)
-            }
-        })
+        body: JSON.stringify(pdfShiftPayload),
     });
 
     if (!response.ok) {
-        // Log the failure details if the API request itself fails
-        console.error(`PDF API failed with status ${response.status}: ${await response.text()}`);
-        throw new Error(`PDF generation failed. Status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('PDFShift API Error:', errorText);
+        throw new Error(`PDF generation failed (Status: ${response.status}, Details: ${errorText})`);
     }
 
-    // 5. Return the PDF bytes from the API
-    return response.arrayBuffer(); 
+    return response.arrayBuffer();
 }
 
+// --- 4. Worker Fetch Handler ---
 export default {
-    async fetch(request: Request, env: Env): Promise<Response> {
-        if (request.method !== 'POST') {
-            return new Response(JSON.stringify({ status: 'OK', message: 'Worker is running. Send POST request with certificate_id.' }), {
-                headers: { 'Content-Type': 'application/json' }
+    async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+        if (request.method !== "POST") {
+            return new Response(JSON.stringify({ status: "OK", message: "Worker is running. Send POST request with certificate_id." }), {
+                headers: { "Content-Type": "application/json" }
             });
         }
-
         try {
-            const json = await request.json() as { certificate_id?: string };
+            const json = await request.json();
             const certId = json.certificate_id;
-
             if (!certId) {
-                return new Response(JSON.stringify({ status: 'ERROR', message: 'Missing certificate_id in request body.' }), {
+                return new Response(JSON.stringify({ status: "ERROR", message: "Missing certificate_id in request body." }), {
                     status: 400,
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { "Content-Type": "application/json" }
                 });
             }
-
             const pdfBytes = await createCertificatePDF(certId, env);
-
-            // Return the PDF to the browser/frontend
             return new Response(pdfBytes, {
                 headers: {
-                    'Content-Type': 'application/pdf',
-                    'Content-Disposition': `attachment; filename="OpalForge_Cert_${certId}.pdf"`,
-                    'Access-Control-Allow-Origin': '*' 
+                    "Content-Type": "application/pdf",
+                    "Content-Disposition": `attachment; filename="OpalForge_Cert_${certId}.pdf"`,
+                    "Access-Control-Allow-Origin": "*"
                 }
             });
-
         } catch (error) {
             console.error(error);
-            return new Response(JSON.stringify({ status: 'ERROR', message: (error as Error).message }), {
+            return new Response(JSON.stringify({ status: "ERROR", message: error.message }), {
                 status: 500,
-                headers: { 'Content-Type': 'application/json' }
+                headers: { "Content-Type": "application/json" }
             });
         }
-    },
+    }
 };
