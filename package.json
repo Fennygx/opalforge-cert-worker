@@ -1,14 +1,22 @@
 {
-  "name": "opalforge-cert-worker",
-  "version": "1.0.0",
-  "main": "src/index.ts",
-  "type": "module",
-  "devDependencies": {
-    "@cloudflare/workers-types": "^4.2025"
-  },
   "dependencies": {
-    "pdf-lib": "^1.17.1",
-    "jspdf": "^2.5.2",
-    "qrcode": "^1.5.3"
+    "@thirdweb-dev/sdk": "^4.0.99",
+    "lucide-react": "^0.553.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "name": "fernando.flatiron",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.3",
+    "@types/qrcode": "^1.5.6"
   }
 }
