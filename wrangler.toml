@@ -1,4 +1,4 @@
-name = "opalforge-cert-worker"
+name = "opalforge-cert-gen"
 main = "src/index.ts"
 compatibility_date = "2025-11-25"
 
